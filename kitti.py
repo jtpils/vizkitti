@@ -33,7 +33,8 @@ class KITTI(object):
 
     def get_calibration(self, i):
         assert(i < self.size)
-        fname = os.path.join(self.label, '{:06d}.txt'.format(i))
+        fname = os.path.join(self.calib, '{:06d}.txt'.format(i))
+        return utils.Calibration(fname)
 
     def get_label(self, i):
         assert(i < self.size)

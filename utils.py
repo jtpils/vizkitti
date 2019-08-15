@@ -19,7 +19,21 @@ class Object3d(object):
 
 
 class Calibration(object):
-    pass
+    def __init__(self, fname):
+        with open(fname) as fp:
+            lines = fp.readlines()
+        line = lines[2].strip().split(' ')[1:]
+        self.P2 = np.array(line, dtype=np.float32)
+        self.P2 = self.P2.reshape(3, 4)
+        line = lines[3].strip().split(' ')[1:]
+        self.P3 = np.array(line, dtype=np.float32)
+        self.P3 = self.P3.reshape(3, 4)
+        line = lines[4].strip().split(' ')[1:]
+        self.R0 = np.array(line, dtype=np.float32)
+        self.R0 = self.R0.reshape(3, 3)
+        line = lines[5].strip().split(' ')[1:]
+        self.V2C = np.array(line, dtype=np.float32)
+        self.V2C = self.V2C.reshape(3, 4)
 
 
 def load_image(fname):
@@ -40,28 +54,29 @@ def load_label(fname):
 
 def cart2hom(xyz):
     n = xyz.shape[0]
-    hom = np.hstack([xyz, np.ones((n, 1))])
-    return hom
+    points = np.hstack([xyz, np.ones((n, 1))])
+    return points
 
 
-def xyzwhl2eight(xyz, w, h, l):
-    """Convert 3D box to eight corners.
+def lidar2rect(xyz, calib):
+    points = cart2hom(xyz)
+    points = np.dot(points, np.dot(calib.V2C.T, calib.R0.T))
+    return points
 
-    Returns:
-       np.ndarray: vertices of shape (8, 3) in the following order:
-            7 -------- 6
-           /|         /|
-          4 -------- 5 .
-          | |        | |
-          . 3 -------- 2
-          |/         |/
-          0 -------- 1
 
-    """
-    x, y, z = xyz
-    w, h, l = w / 2, h / 2, l / 2
-    return np.array([
-        [x + w, x + w, x - w, x - w, x + w, x + w, x - w, x - w],
-        [y - h, y + h, y + h, y - h, y - h, y + h, y + h, y - h],
-        [z - l, z - l, z - l, z - l, z + l, z + l, z + l, z + l]
-    ]).T
+def roty(angle):
+    c = np.cos(angle)
+    s = np.sin(angle)
+    return np.array([[c,  0,  s],
+                     [0,  1,  0],
+                     [-s, 0,  c]])
+
+def compute_box3d(obj):
+    R = roty(obj.ry)
+    l, w, h = obj.l, obj.w, obj.h
+    x = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2]
+    y = [0,0,0,0,-h,-h,-h,-h]
+    z = [w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2]
+    box = np.dot(R, np.vstack([x, y, z]))
+    box = box.T + obj.pos
+    return box
